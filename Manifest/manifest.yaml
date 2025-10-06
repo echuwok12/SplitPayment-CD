@@ -1,0 +1,156 @@
+# PostgreSQL Secret
+apiVersion: v1
+kind: Secret
+metadata:
+  name: postgres-secret
+  namespace: tripapp
+type: Opaque
+data:
+  POSTGRES_USER: 
+  POSTGRES_PASSWORD: 
+  POSTGRES_DB: 
+
+---
+# PostgreSQL ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-config
+  namespace: tripapp
+data:
+  POSTGRES_DATABASE: "postgres"
+  POSTGRES_HOST: "postgres"
+  POSTGRES_PORT: "5432"
+
+---
+# StorageClass 
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: managed-premium
+provisioner: disk.csi.azure.com
+parameters:
+  skuName: Standard_LRS
+reclaimPolicy: Retain
+volumeBindingMode: WaitForFirstConsumer
+
+---
+# Persistent Volume Claim
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-pvc
+  namespace: tripapp
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: managed-premium
+  resources:
+    requests:
+      storage: 8Gi
+
+---
+# PostgreSQL Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: tripapp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+      annotations:
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/role: "tripapp-role"
+        vault.hashicorp.com/agent-inject-secret-db-creds: "secret/data/tripapp/postgres"
+        vault.hashicorp.com/agent-inject-template-db-creds: |
+          {{- with secret "secret/data/tripapp/postgres" -}}
+          export POSTGRES_USER="{{ .Data.data.POSTGRES_USER }}"
+          export POSTGRES_PASSWORD="{{ .Data.data.POSTGRES_PASSWORD }}"
+          export POSTGRES_DB="{{ .Data.data.POSTGRES_DB }}"
+          {{- end }}
+    spec:
+      serviceAccountName: tripapp-sa
+      containers:
+        - name: postgres
+          image: postgres:15
+          ports:
+            - containerPort: 5432
+              name: postgres
+          envFrom:
+            - secretRef:
+                name: vault-env
+---
+# PostgreSQL Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: tripapp
+spec:
+  type: ClusterIP
+  selector:
+    app: postgres
+  ports:
+    - port: 5432
+      targetPort: 5432
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tripapp
+  namespace: tripapp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tripapp
+  template:
+    metadata:
+      labels:
+        app: tripapp
+      annotations:
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/role: "tripapp-role"
+        vault.hashicorp.com/agent-inject-secret-db-creds: "secret/data/tripapp/postgres"
+        vault.hashicorp.com/agent-inject-template-db-creds: |
+          {{- with secret "secret/data/tripapp/postgres" -}}
+          export DB_HOST="{{ .Data.data.POSTGRES_HOST }}"
+          export DB_PORT="{{ .Data.data.POSTGRES_PORT }}"
+          export DB_USER="{{ .Data.data.POSTGRES_USER }}"
+          export DB_PASSWORD="{{ .Data.data.POSTGRES_PASSWORD }}"
+          export DB_NAME="{{ .Data.data.POSTGRES_DB }}"
+          {{- end }}
+    spec:
+      serviceAccountName: tripapp-sa
+      containers:
+        - name: tripapp
+          image: tripsplitter/tripapp:v01
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - secretRef:
+                name: vault-env
+---
+# =========================
+# TripSplitter Service
+# =========================
+apiVersion: v1
+kind: Service
+metadata:
+  name: tripapp-service
+  namespace: tripapp
+spec:
+  type: ClusterIP
+  selector:
+    app: tripapp
+  ports:
+    - port: 80
+      targetPort: 8080
