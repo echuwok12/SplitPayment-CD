@@ -1,7 +1,7 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: myapp-ingress
+  name: tripapp-ingress
   namespace: default
   annotations:
     kubernetes.io/ingress.class: "nginx"
@@ -10,9 +10,9 @@ spec:
   tls:
   - hosts:
     - myapp.duckdns.org
-    secretName: myapp-tls
+    secretName: tripapp-tls
   rules:
-  - host: myapp.duckdns.org
+  - host: tripapp.duckdns.org
     http:
       paths:
       - path: /
