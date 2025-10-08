@@ -139,9 +139,7 @@ spec:
             - secretRef:
                 name: vault-env
 ---
-# =========================
 # TripSplitter Service
-# =========================
 apiVersion: v1
 kind: Service
 metadata:
