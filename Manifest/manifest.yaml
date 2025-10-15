@@ -1,28 +1,4 @@
-# PostgreSQL Secret
-apiVersion: v1
-kind: Secret
-metadata:
-  name: postgres-secret
-  namespace: tripapp
-type: Opaque
-data:
-  POSTGRES_USER: 
-  POSTGRES_PASSWORD: 
-  POSTGRES_DB: 
 
----
-# PostgreSQL ConfigMap
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: postgres-config
-  namespace: tripapp
-data:
-  POSTGRES_DATABASE: "postgres"
-  POSTGRES_HOST: "postgres"
-  POSTGRES_PORT: "5432"
-
----
 # StorageClass 
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
